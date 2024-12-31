@@ -39,7 +39,7 @@ Welcome to **Smart Mirror**! This project is an emotion-detecting application th
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/smart-mirror.git
+   git clone https://github.com/X-DIABLO-X/emotionDetector.git
    cd smart-mirror
    ```
 
@@ -128,13 +128,13 @@ We welcome contributions! 🎉
 
 ## 📜 License
 
-This project is licensed under the MIT License. 📝
+This project is licensed under the Scaler School of Technology. 📝
 
 ---
 
 ## 🤗 Feedback & Support
 
-If you enjoy using **Smart Mirror**, give it a ⭐! For issues or suggestions, open an issue or drop us an email at **support@smartmirror.com**.
+If you enjoy using **Smart Mirror**, give it a ⭐! For issues or suggestions, open an issue or drop us an email at **harshit.tiwari080805@gmail.com**.
 
 ---
 
