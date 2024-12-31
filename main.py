@@ -45,6 +45,7 @@ class SpeechEngine:
         self.thread = threading.Thread(target=self._speak_worker)
         self.thread.daemon = True
         self.thread.start()
+        self.is_enabled = True  # Add speech toggle state
 
     def setup_voice(self):
         voices = self.engine.getProperty('voices')
@@ -59,11 +60,18 @@ class SpeechEngine:
             text = self.queue.get()
             if text == "STOP":
                 break
-            self.engine.say(text)
-            self.engine.runAndWait()
+            if self.is_enabled:  # Only speak if speech is enabled
+                self.engine.say(text)
+                self.engine.runAndWait()
+            self.queue.task_done()
 
     def say(self, text: str):
-        self.queue.put(text)
+        if self.is_enabled:  # Only queue speech if enabled
+            self.queue.put(text)
+
+    def toggle(self):
+        self.is_enabled = not self.is_enabled
+        return "Speech enabled" if self.is_enabled else "Speech disabled"
 
     def stop(self):
         self.queue.put("STOP")
@@ -78,14 +86,13 @@ class SmartMirror:
         self.last_time = 0
         self.running = True
         
-        # Enhanced UI colors
         self.COLORS = {
-            'happy': (0, 255, 0),      # Green
-            'sad': (255, 0, 0),        # Red
-            'angry': (0, 0, 255),      # Blue
-            'surprised': (255, 255, 0), # Yellow
-            'feared': (128, 0, 128),   # Purple
-            'neutral': (255, 255, 255)  # White
+            'happy': (0, 255, 0),
+            'sad': (255, 0, 0),
+            'angry': (0, 0, 255),
+            'surprised': (255, 255, 0),
+            'feared': (128, 0, 128),
+            'neutral': (255, 255, 255)
         }
         
         self.load_compliments()
@@ -104,14 +111,13 @@ class SmartMirror:
 
     def setup_camera(self):
         self.cap = cv2.VideoCapture(0)
-        # Set camera properties for better quality
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         self.cap.set(cv2.CAP_PROP_FPS, 60)
 
     def load_compliments(self):
-        # Your existing compliments dictionary here
-        self.compliments = compliments = {
+        # Your existing compliments dictionary here (same as before)
+        self.compliments = {
     'very angry': [
         "Take a deep breath, you're stronger than this!",
         "Calm down, you can handle this!",
@@ -251,31 +257,27 @@ class SmartMirror:
     def draw_face_info(self, frame: np.ndarray, face_data: FaceData, emotions_display: str):
         x, y, w, h = face_data.box
         
-        # Determine dominant emotion and its color
         dominant_emotion = max(face_data.emotions.items(), key=lambda x: x[1])[0]
         color = self.COLORS.get(dominant_emotion, self.COLORS['neutral'])
         
-        # Draw enhanced face rectangle
         cv2.rectangle(frame, (x, y), (x + w, y + h), color, 2)
         
-        # Add background rectangle for better text visibility
         overlay = frame.copy()
         cv2.rectangle(overlay, (x, y - 80), (x + w, y), color, -1)
         cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
         
-        # Draw text with enhanced styling
         font = cv2.FONT_HERSHEY_DUPLEX
         font_scale = 0.6
         thickness = 2
         
-        # Display emotions
         cv2.putText(frame, emotions_display, (x + 5, y - 60), font, font_scale, (255, 255, 255), thickness)
-        
-        # Display age and gender
-        info_text = f"Age: {face_data.age}"
-        info_gender = f"Gender: {face_data.gender}"
-        cv2.putText(frame, info_text, (x + 5, y - 35), font, font_scale, (255, 255, 255), thickness)
-        cv2.putText(frame, info_gender, (x + 5, y - 10), font, font_scale, (255, 255, 255), thickness)
+        cv2.putText(frame, f"Age: {face_data.age}", (x + 5, y - 35), font, font_scale, (255, 255, 255), thickness)
+        cv2.putText(frame, f"Gender: {face_data.gender}", (x + 5, y - 10), font, font_scale, (255, 255, 255), thickness)
+
+    def draw_status(self, frame: np.ndarray):
+        # Add speech status indicator
+        status_text = "Speech: ON" if self.speech_engine.is_enabled else "Speech: OFF"
+        cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_DUPLEX, 0.7, (255, 255, 255), 2)
 
     def process_frame(self) -> Optional[np.ndarray]:
         success, frame = self.cap.read()
@@ -286,6 +288,7 @@ class SmartMirror:
         detected = self.detector.detect_emotions(frame)
         
         if not detected:
+            self.draw_status(frame)  # Always show status
             return frame
             
         for face in detected:
@@ -301,8 +304,8 @@ class SmartMirror:
             display_emotions = ', '.join([key for key, value in categorized_emotions.items() if value])
             
             self.draw_face_info(frame, face_data, display_emotions)
+            self.draw_status(frame)  # Add status to frame
             
-            # Handle speech feedback
             if display_emotions != self.last_emotion and time.time() - self.last_time > 2:
                 compliment = ', '.join([random.choice(self.compliments[key]) 
                                       for key, value in categorized_emotions.items() if value])
@@ -322,15 +325,17 @@ class SmartMirror:
                 
             cv2.imshow('Smart Mirror', frame)
             
-            # Handle keyboard interactions
             key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):  # Quit
+            if key == ord('q'):
                 break
-            elif key == ord('s'):  # Toggle speech
-                self.speech_engine.say("Speech toggled")
-            elif key == ord('h'):  # Help
+            elif key == ord('s'):
+                status = self.speech_engine.toggle()
+                print(status)  # Print toggle status to console
+            elif key == ord('h'):
                 help_text = "Controls: Q - Quit, S - Toggle Speech, H - Help"
-                self.speech_engine.say(help_text)
+                print(help_text)  # Print help to console
+                if self.speech_engine.is_enabled:
+                    self.speech_engine.say(help_text)
 
         self.cleanup()
 
